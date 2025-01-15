@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Shooter Game</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(to bottom, #000428, #004e92);
+            color: white;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 10;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 8px;
+        }
+        #game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+        #game-over button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <div id="game-over">
+        <h1>Game Over!</h1>
+        <p id="final-score"></p>
+        <button onclick="restartGame()">Restart</button>
+    </div>
+    <script>
+        const canvas = document.createElement('canvas');
+        document.body.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let score = 0;
+        let level = 1;
+        let asteroidSpawnRate = 800;
+        const ship = { x: canvas.width / 2, y: canvas.height - 50, width: 40, height: 40, speed: 6 };
+        const bullets = [];
+        const asteroids = [];
+        const coins = [];
+        const keys = {};
+        let gamePaused = false;
+
+        window.addEventListener('keydown', (e) => keys[e.key] = true);
+        window.addEventListener('keyup', (e) => keys[e.key] = false);
+
+        function drawShip() {
+            ctx.fillStyle = 'lime';
+            ctx.beginPath();
+            ctx.moveTo(ship.x, ship.y);
+            ctx.lineTo(ship.x - ship.width / 2, ship.y + ship.height);
+            ctx.lineTo(ship.x + ship.width / 2, ship.y + ship.height);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        function drawBullets() {
+            ctx.fillStyle = 'yellow';
+            bullets.forEach(bullet => {
+                ctx.fillRect(bullet.x - 2.5, bullet.y, 5, 15);
+            });
+        }
+
+        function drawAsteroids() {
+            ctx.fillStyle = 'red';
+            asteroids.forEach(asteroid => {
+                ctx.beginPath();
+                ctx.arc(asteroid.x, asteroid.y, asteroid.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function drawCoins() {
+            ctx.fillStyle = 'gold';
+            coins.forEach(coin => {
+                ctx.beginPath();
+                ctx.arc(coin.x, coin.y, coin.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function update() {
+            if (keys['ArrowLeft'] && ship.x > ship.width / 2) ship.x -= ship.speed;
+            if (keys['ArrowRight'] && ship.x < canvas.width - ship.width / 2) ship.x += ship.speed;
+            if (keys['ArrowUp'] && ship.y > 0) ship.y -= ship.speed;
+            if (keys['ArrowDown'] && ship.y < canvas.height - ship.height) ship.y += ship.speed;
+
+            bullets.forEach((bullet, index) => {
+                bullet.y -= 12;
+                if (bullet.y < 0) bullets.splice(index, 1);
+            });
+
+            asteroids.forEach((asteroid, index) => {
+                asteroid.y += asteroid.speed;
+                if (asteroid.y > canvas.height) asteroids.splice(index, 1);
+            });
+
+            coins.forEach((coin, index) => {
+                coin.y += coin.speed;
+                if (coin.y > canvas.height) coins.splice(index, 1);
+            });
+
+            bullets.forEach((bullet, bIndex) => {
+                asteroids.forEach((asteroid, aIndex) => {
+                    const dx = bullet.x - asteroid.x;
+                    const dy = bullet.y - asteroid.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < asteroid.size) {
+                        bullets.splice(bIndex, 1);
+                        asteroids.splice(aIndex, 1);
+                        score += 10;
+                        document.getElementById('score').textContent = `Score: ${score}`;
+
+                        if (score % 50 === 0) {
+                            level++;
+                            asteroidSpawnRate = Math.max(200, asteroidSpawnRate - 100);
+                            clearInterval(spawnInterval);
+                            spawnInterval = setInterval(spawnAsteroid, asteroidSpawnRate);
+                        }
+                    }
+                });
+            });
+
+            coins.forEach((coin, index) => {
+                const dx = ship.x - coin.x;
+                const dy = ship.y - coin.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < coin.size + ship.width / 2) {
+                    coins.splice(index, 1);
+                    score += 20;
+                    document.getElementById('score').textContent = `Score: ${score}`;
+                }
+            });
+
+            asteroids.forEach(asteroid => {
+                const dx = ship.x - asteroid.x;
+                const dy = ship.y - asteroid.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < asteroid.size + ship.width / 2) {
+                    endGame();
+                }
+            });
+        }
+
+        function spawnAsteroid() {
+            const size = Math.random() * 30 + 15;
+            asteroids.push({
+                x: Math.random() * canvas.width,
+                y: -size,
+                size: size,
+                speed: Math.random() * 4 + 2 + level
+            });
+        }
+
+        function spawnCoin() {
+            const size = 15;
+            coins.push({
+                x: Math.random() * canvas.width,
+                y: -size,
+                size: size,
+                speed: Math.random() * 2 + 1
+            });
+        }
+
+        function endGame() {
+            document.getElementById('final-score').textContent = `Your Score: ${score}`;
+            document.getElementById('game-over').style.display = 'block';
+            cancelAnimationFrame(animationId);
+            clearInterval(spawnInterval);
+            clearInterval(coinInterval);
+        }
+
+        function restartGame() {
+            score = 0;
+            level = 1;
+            asteroidSpawnRate = 800;
+            asteroids.length = 0;
+            bullets.length = 0;
+            coins.length = 0;
+            document.getElementById('score').textContent = `Score: ${score}`;
+            document.getElementById('game-over').style.display = 'none';
+            spawnInterval = setInterval(spawnAsteroid, asteroidSpawnRate);
+            coinInterval = setInterval(spawnCoin, 3000);
+            gameLoop();
+        }
+
+        let animationId;
+        function gameLoop() {
+            if (gamePaused) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawShip();
+            drawBullets();
+            drawAsteroids();
+            drawCoins();
+            update();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === ' ') bullets.push({ x: ship.x, y: ship.y });
+            if (e.key === 'p') {
+                gamePaused = !gamePaused;
+                if (!gamePaused) gameLoop();
+            }
+        });
+
+        let spawnInterval = setInterval(spawnAsteroid, asteroidSpawnRate);
+        let coinInterval = setInterval(spawnCoin, 3000);
+        gameLoop();
+    </script>
+</body>
+</html>
